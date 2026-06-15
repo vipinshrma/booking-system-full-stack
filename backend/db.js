@@ -4,10 +4,12 @@ require('dotenv').config();
 const pool = new Pool({
     user: process.env.USER || "postgres",
     host: process.env.HOST || "localhost",
-    password: process.env.PASSWORD || "123456",
+    password: process.env.PASSWORD || "password",
     port: process.env.PORT || 5432,
-    database: process.env.DATABASE || ""
+    database: process.env.DATABASE || "",
+    connectionString: process.env.DATABASE_URL
 })
+
 // pool.query('SELECT NOW()', (err, res) => {
 //     if (err) {
 //         console.error("FAILED TO CONNECT TO POSTGRES DB: ", err)

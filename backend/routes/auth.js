@@ -1,8 +1,9 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const pool = require('./db');
-const router = express.Router();
+const pool = require('../db');
+const express = require('express')
 
+const router = express.Router();
 
 // Test endpoint: Check DB connection + return a user (if any exists)
 router.get('/api/test-db', async (req, res) => {
@@ -25,7 +26,11 @@ router.get('/api/test-db', async (req, res) => {
 });
 
 router.post('/register', async (req, res) => {
-    const { name, email, password } = req.body;
+    if (!req.body) return res.json({
+        success: false,
+        message: "please provide the fields"
+    })
+    const { name = '', email = '', password = '' } = req.body || {};
     if (!name || !email || !password) return res.json({
         success: false,
         message: "all fields are required"
@@ -40,9 +45,12 @@ router.post('/register', async (req, res) => {
         }
 
         //hash the password
-        const saltsRound = 20;
-        const hashPassword = await bcrypt.hash(password, saltsRound)
-        const result = pool.query('INSERT INTO users (name,email,passwordHash,role) VALUES ($1,$2,$3,$4)', [name, email, hashPassword, 'guest'])
+        const saltsRound = 10;
+        const hashPassword = await bcrypt.hash(password, saltsRound);
+        const result = await pool.query(
+            'INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role',
+            [name, email, hashPassword, 'guest']
+        );
         // 5. Generate a JWT token (for immediate login)
         const token = jwt.sign(
             { userId: result.rows[0].id, role: result.rows[0].role },
@@ -56,9 +64,9 @@ router.post('/register', async (req, res) => {
             user: result.rows[0], // id, name, email, role
         });
 
-    } catch (error) {
+    } catch (err) {
         console.error('❌ Registration error:', err);
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             message: 'Server error during registration.',
             error: err.message,
@@ -66,3 +74,5 @@ router.post('/register', async (req, res) => {
     }
 
 })
+
+module.exports = router;
