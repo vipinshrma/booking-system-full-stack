@@ -15,6 +15,8 @@ module.exports = {
             created_at: { type: 'timestamp with time zone', default: pgm.func('NOW()') },
             updated_at: { type: 'timestamp with time zone', default: pgm.func('NOW()') },
         });
+
+        // Add indexes
         await pgm.createIndex('users', ['email']);
     },
     down: async (pgm) => {
