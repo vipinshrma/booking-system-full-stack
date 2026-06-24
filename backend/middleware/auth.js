@@ -13,6 +13,7 @@ const authenticationToken = (req, res, next) => {
         req.user = decoded;
         next()
     } catch (error) {
+        console.error("❌ JWT Verify Error Details:", error.message);
         return res.status(403).json({
             success: false,
             message: 'Invalid or expired token.'
