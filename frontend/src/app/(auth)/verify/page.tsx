@@ -5,14 +5,18 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/context/AuthContext";
 
 function VerifyContent() {
   const router = useRouter();
+  const { verifyOtp, resendOtp } = useAuth();
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "alex@athereal.com";
 
   const [otp, setOtp] = useState(["", "", "", ""]);
   const [timer, setTimer] = useState(59);
+  const [error, setError] = useState("");
+  const [loadingState, setLoadingState] = useState(false);
   const otpRefs = [
     useRef<HTMLInputElement>(null),
     useRef<HTMLInputElement>(null),
@@ -29,12 +33,23 @@ function VerifyContent() {
     return () => clearInterval(interval);
   }, [timer]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const code = otp.join("");
-    alert(`Account verified successfully with code: ${code}`);
-    router.push("/");
+    if (code.length < 4) return;
+    setError("");
+    setLoadingState(true);
+
+    const res = await verifyOtp(email, code);
+    setLoadingState(false);
+
+    if (res.success) {
+      router.push("/");
+    } else {
+      setError(res.message);
+    }
   };
+
 
   const handleOtpChange = (val: string, index: number) => {
     if (isNaN(Number(val))) return;
@@ -54,10 +69,17 @@ function VerifyContent() {
     }
   };
 
-  const handleResendCode = () => {
-    setTimer(59);
-    alert("Verification code has been resent to your email.");
+  const handleResendCode = async () => {
+    setError("");
+    const res = await resendOtp(email);
+    if (res.success) {
+      setTimer(59);
+      alert("Verification code has been resent to your email.");
+    } else {
+      setError(res.message);
+    }
   };
+
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -99,6 +121,12 @@ function VerifyContent() {
             We've sent a 4-digit verification code to <span className="font-semibold text-on-surface">{email}</span>. Please enter it below.
           </p>
 
+          {error && (
+            <div className="bg-destructive/10 text-destructive text-sm p-4 rounded-xl border border-destructive/20 font-sans font-medium text-center w-full mb-6">
+              {error}
+            </div>
+          )}
+
           <form className="space-y-8 w-full" onSubmit={handleSubmit}>
             <div className="flex justify-center gap-4" id="otp-container">
               {otp.map((digit, idx) => (
@@ -120,11 +148,12 @@ function VerifyContent() {
 
             <Button
               type="submit"
-              disabled={otp.some((d) => d === "")}
+              disabled={otp.some((d) => d === "") || loadingState}
               className="w-full py-6 bg-primary text-on-primary rounded-full font-sans text-sm font-semibold shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95 transition-all duration-300 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
             >
-              Verify Account
+              {loadingState ? "Verifying..." : "Verify Account"}
             </Button>
+
 
             <div className="flex flex-col items-center gap-2 pt-2">
               <p className="font-sans text-xs text-on-surface-variant uppercase tracking-widest">Didn't receive the code?</p>

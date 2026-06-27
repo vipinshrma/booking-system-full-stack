@@ -2,50 +2,31 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-
-interface Resort {
-  id: string;
-  name: string;
-  location: string;
-  price: number;
-  rating: number;
-  image: string;
-  description: string;
-}
+import { useAuth } from "@/context/AuthContext";
 
 export default function ExploreResortsPage() {
+  const { user, logout } = useAuth();
   const [destination, setDestination] = useState("");
   const [checkIn, setCheckIn] = useState("");
+  const [hotels, setHotels] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const seasonalResorts: Resort[] = [
-    {
-      id: "eiger",
-      name: "Eiger Crest Peak",
-      location: "Swiss Alps",
-      price: 850,
-      rating: 4.9,
-      image: "/images/eiger-crest.jpg",
-      description: "Experience the peak of alpine luxury with panoramic views of the Bernese Highlands and private helipad access.",
-    },
-    {
-      id: "saint-jean",
-      name: "Villa Saint-Jean",
-      location: "French Riviera",
-      price: 920,
-      rating: 4.8,
-      image: "/images/villa-saint-jean.jpg",
-      description: "A timeless escape on the Côte d'Azur, blending historic elegance with contemporary seaside leisure.",
-    },
-    {
-      id: "al-maha",
-      name: "Al Maha Dunes",
-      location: "Dubai",
-      price: 1100,
-      rating: 5.0,
-      image: "/images/al-maha-dunes.jpg",
-      description: "Secluded desert villas offering unparalleled privacy and encounters with local wildlife in their natural habitat.",
-    },
-  ];
+  useEffect(() => {
+    async function fetchHotels() {
+      try {
+        const res = await fetch("http://localhost:4000/api/hotels");
+        const data = await res.json();
+        if (data.success) {
+          setHotels(data.data);
+        }
+      } catch (err) {
+        console.error("Error fetching hotels:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchHotels();
+  }, []);
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-on-surface">
@@ -83,18 +64,34 @@ export default function ExploreResortsPage() {
             </Link>
           </div>
           <div className="flex items-center gap-4">
-            <Link
-              href="/login"
-              className="font-sans text-sm font-semibold text-on-surface-variant hover:text-primary transition-all duration-300"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/signup"
-              className="bg-primary text-on-primary px-6 py-2.5 rounded-full font-sans text-sm font-semibold hover:opacity-90 active:scale-95 transition-all duration-300"
-            >
-              Join Now
-            </Link>
+            {user ? (
+              <>
+                <span className="font-sans text-sm text-on-surface-variant font-medium">
+                  Hi, {user.name.split(" ")[0]}
+                </span>
+                <button
+                  onClick={logout}
+                  className="bg-surface-container hover:bg-outline-variant text-on-surface px-6 py-2.5 rounded-full font-sans text-sm font-semibold active:scale-95 transition-all duration-300 cursor-pointer"
+                >
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="font-sans text-sm font-semibold text-on-surface-variant hover:text-primary transition-all duration-300"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/signup"
+                  className="bg-primary text-on-primary px-6 py-2.5 rounded-full font-sans text-sm font-semibold hover:opacity-90 active:scale-95 transition-all duration-300"
+                >
+                  Join Now
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -222,38 +219,48 @@ export default function ExploreResortsPage() {
               <p className="font-sans text-sm text-on-surface-variant mt-2">Curated winter getaways and sun-drenched retreats for right now.</p>
             </div>
             <div className="flex gap-6 overflow-x-auto pb-8 snap-x scrollbar-thin scrollbar-thumb-outline-variant">
-              {seasonalResorts.map((resort) => (
-                <div key={resort.id} className="min-w-[320px] md:min-w-[400px] snap-start bg-white rounded-[24px] overflow-hidden card-shadow group">
-                  <div className="h-64 overflow-hidden">
-                    <img
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                      alt={resort.name}
-                      src={resort.image}
-                    />
-                  </div>
-                  <div className="p-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <h3 className="font-display text-lg font-bold text-on-surface">{resort.name}</h3>
-                      <div className="flex items-center gap-1 text-primary">
-                        <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                        <span className="font-sans text-sm font-semibold">{resort.rating}</span>
+              {loading ? (
+                <div className="text-center w-full py-12 text-on-surface-variant font-sans">
+                  Loading resorts...
+                </div>
+              ) : hotels.length > 0 ? (
+                hotels.slice(0, 3).map((resort) => (
+                  <div key={resort.id} className="min-w-[320px] md:min-w-[400px] snap-start bg-white rounded-[24px] overflow-hidden card-shadow group">
+                    <div className="h-64 overflow-hidden">
+                      <img
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                        alt={resort.name}
+                        src={resort.image_url || "/images/eiger-crest.jpg"}
+                      />
+                    </div>
+                    <div className="p-6">
+                      <div className="flex justify-between items-start mb-4">
+                        <h3 className="font-display text-lg font-bold text-on-surface">{resort.name}</h3>
+                        <div className="flex items-center gap-1 text-primary">
+                          <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                          <span className="font-sans text-sm font-semibold">{resort.star_rating}.0</span>
+                        </div>
+                      </div>
+                      <p className="font-sans text-sm text-on-surface-variant mb-6 line-clamp-2">{resort.description}</p>
+                      <div className="flex justify-between items-center">
+                        <span className="font-display text-xl font-bold text-on-surface">
+                          ${resort.price_per_night} <span className="text-xs font-sans font-normal text-on-surface-variant">/ night</span>
+                        </span>
+                        <Link
+                          href={`/search?destination=${encodeURIComponent(resort.location.split(',')[0])}`}
+                          className="p-3 rounded-full border border-outline-variant hover:bg-primary hover:text-white transition-colors active:scale-95"
+                        >
+                          <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                        </Link>
                       </div>
                     </div>
-                    <p className="font-sans text-sm text-on-surface-variant mb-6 line-clamp-2">{resort.description}</p>
-                    <div className="flex justify-between items-center">
-                      <span className="font-display text-xl font-bold text-on-surface">
-                        ${resort.price} <span className="text-xs font-sans font-normal text-on-surface-variant">/ night</span>
-                      </span>
-                      <Link
-                        href="/search"
-                        className="p-3 rounded-full border border-outline-variant hover:bg-primary hover:text-white transition-colors active:scale-95"
-                      >
-                        <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                      </Link>
-                    </div>
                   </div>
+                ))
+              ) : (
+                <div className="text-center w-full py-12 text-on-surface-variant font-sans">
+                  No resorts found.
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </section>

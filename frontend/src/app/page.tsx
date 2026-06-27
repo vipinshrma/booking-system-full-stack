@@ -7,13 +7,34 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsIndicator } from "@/components/ui/tabs";
+import { useAuth } from "@/context/AuthContext";
 
 export default function LandingPage() {
   const router = useRouter();
+  const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<"hotels" | "flights" | "resorts">("hotels");
   const [destination, setDestination] = useState("");
   const [dates, setDates] = useState("");
   const [guests, setGuests] = useState("");
+  const [hotels, setHotels] = useState<any[]>([]);
+  const [loadingHotels, setLoadingHotels] = useState(true);
+
+  useEffect(() => {
+    async function fetchHotels() {
+      try {
+        const res = await fetch("http://localhost:4000/api/hotels");
+        const data = await res.json();
+        if (data.success) {
+          setHotels(data.data);
+        }
+      } catch (err) {
+        console.error("Error fetching hotels:", err);
+      } finally {
+        setLoadingHotels(false);
+      }
+    }
+    fetchHotels();
+  }, []);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -58,18 +79,34 @@ export default function LandingPage() {
             </Link>
           </div>
           <div className="flex items-center gap-4">
-            <Link
-              href="/login"
-              className="font-sans text-sm font-semibold text-on-surface-variant hover:text-primary transition-all duration-300"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/signup"
-              className="bg-primary text-on-primary px-6 py-2.5 rounded-full font-sans text-sm font-semibold hover:opacity-90 active:scale-95 transition-all duration-300"
-            >
-              Join Now
-            </Link>
+            {user ? (
+              <>
+                <span className="font-sans text-sm text-on-surface-variant font-medium">
+                  Hi, {user.name.split(" ")[0]}
+                </span>
+                <button
+                  onClick={logout}
+                  className="bg-surface-container hover:bg-outline-variant text-on-surface px-6 py-2.5 rounded-full font-sans text-sm font-semibold active:scale-95 transition-all duration-300 cursor-pointer"
+                >
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="font-sans text-sm font-semibold text-on-surface-variant hover:text-primary transition-all duration-300"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/signup"
+                  className="bg-primary text-on-primary px-6 py-2.5 rounded-full font-sans text-sm font-semibold hover:opacity-90 active:scale-95 transition-all duration-300"
+                >
+                  Join Now
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -244,92 +281,50 @@ export default function LandingPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Santorini Card */}
-            <Link href="/search?destination=Santorini" className="group cursor-pointer block">
-              <div className="relative aspect-[3/4] rounded-[24px] overflow-hidden card-shadow mb-4">
-                <img
-                  alt="Santorini, Greece"
-                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                  src="/images/santorini.jpg"
-                />
-                <div className="absolute top-4 left-4 bg-primary text-on-primary px-4 py-1.5 rounded-full font-sans text-xs font-semibold">
-                  Top Rated
-                </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60"></div>
-                <div className="absolute bottom-6 left-6 text-white text-left">
-                  <p className="font-sans text-xs font-bold tracking-wider opacity-85 mb-1">GREECE</p>
-                  <h3 className="font-display text-2xl font-bold">Santorini</h3>
-                </div>
+            {loadingHotels ? (
+              <div className="col-span-3 text-center py-12 text-on-surface-variant font-sans">
+                Loading trending destinations...
               </div>
-              <div className="flex justify-between items-center px-2">
-                <div className="flex items-center gap-1 text-primary">
-                  <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>
-                    star
-                  </span>
-                  <span className="font-sans text-sm font-semibold">4.9</span>
-                  <span className="text-on-surface-variant font-sans text-sm">(1.2k reviews)</span>
-                </div>
-                <p className="font-display text-xl font-bold text-on-surface">
-                  $450 <span className="font-sans text-sm text-on-surface-variant font-normal">/night</span>
-                </p>
+            ) : hotels.length > 0 ? (
+              hotels.slice(0, 3).map((hotel) => (
+                <Link key={hotel.id} href={`/search?destination=${encodeURIComponent(hotel.location.split(',')[0])}`} className="group cursor-pointer block">
+                  <div className="relative aspect-[3/4] rounded-[24px] overflow-hidden card-shadow mb-4">
+                    <img
+                      alt={hotel.name}
+                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                      src={hotel.image_url || "/images/santorini.jpg"}
+                    />
+                    {hotel.star_rating >= 5 && (
+                      <div className="absolute top-4 left-4 bg-primary text-on-primary px-4 py-1.5 rounded-full font-sans text-xs font-semibold shadow-lg">
+                        Top Rated
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60"></div>
+                    <div className="absolute bottom-6 left-6 text-white text-left">
+                      <p className="font-sans text-xs font-bold tracking-wider opacity-85 mb-1">
+                        {hotel.location.split(',').pop()?.trim().toUpperCase() || "DESTINATION"}
+                      </p>
+                      <h3 className="font-display text-2xl font-bold">{hotel.name}</h3>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center px-2">
+                    <div className="flex items-center gap-1 text-primary">
+                      <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>
+                        star
+                      </span>
+                      <span className="font-sans text-sm font-semibold">{hotel.star_rating}.0</span>
+                    </div>
+                    <p className="font-display text-xl font-bold text-on-surface">
+                      ${hotel.price_per_night} <span className="font-sans text-sm text-on-surface-variant font-normal">/night</span>
+                    </p>
+                  </div>
+                </Link>
+              ))
+            ) : (
+              <div className="col-span-3 text-center py-12 text-on-surface-variant font-sans">
+                No destinations available.
               </div>
-            </Link>
-
-            {/* Aspen Card */}
-            <Link href="/search?destination=Aspen" className="group cursor-pointer block">
-              <div className="relative aspect-[3/4] rounded-[24px] overflow-hidden card-shadow mb-4">
-                <img
-                  alt="Aspen, USA"
-                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                  src="/images/aspen.jpg"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60"></div>
-                <div className="absolute bottom-6 left-6 text-white text-left">
-                  <p className="font-sans text-xs font-bold tracking-wider opacity-85 mb-1">USA</p>
-                  <h3 className="font-display text-2xl font-bold">Aspen</h3>
-                </div>
-              </div>
-              <div className="flex justify-between items-center px-2">
-                <div className="flex items-center gap-1 text-primary">
-                  <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>
-                    star
-                  </span>
-                  <span className="font-sans text-sm font-semibold">4.8</span>
-                  <span className="text-on-surface-variant font-sans text-sm">(850 reviews)</span>
-                </div>
-                <p className="font-display text-xl font-bold text-on-surface">
-                  $820 <span className="font-sans text-sm text-on-surface-variant font-normal">/night</span>
-                </p>
-              </div>
-            </Link>
-
-            {/* Kyoto Card */}
-            <Link href="/search?destination=Kyoto" className="group cursor-pointer block">
-              <div className="relative aspect-[3/4] rounded-[24px] overflow-hidden card-shadow mb-4">
-                <img
-                  alt="Kyoto, Japan"
-                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                  src="/images/kyoto.jpg"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60"></div>
-                <div className="absolute bottom-6 left-6 text-white text-left">
-                  <p className="font-sans text-xs font-bold tracking-wider opacity-85 mb-1">JAPAN</p>
-                  <h3 className="font-display text-2xl font-bold">Kyoto</h3>
-                </div>
-              </div>
-              <div className="flex justify-between items-center px-2">
-                <div className="flex items-center gap-1 text-primary">
-                  <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>
-                    star
-                  </span>
-                  <span className="font-sans text-sm font-semibold">5.0</span>
-                  <span className="text-on-surface-variant font-sans text-sm">(2.1k reviews)</span>
-                </div>
-                <p className="font-display text-xl font-bold text-on-surface">
-                  $390 <span className="font-sans text-sm text-on-surface-variant font-normal">/night</span>
-                </p>
-              </div>
-            </Link>
+            )}
           </div>
         </section>
 

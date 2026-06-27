@@ -2,89 +2,78 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { useAuth } from "@/context/AuthContext";
 
 interface Property {
-  id: string;
+  id: number;
   name: string;
   location: string;
-  price: number;
-  rating: number;
-  image: string;
+  price_per_night: number;
+  star_rating: number;
+  image_url: string;
   description: string;
-  isTopRated?: boolean;
 }
 
 function SearchResultsContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const searchDest = searchParams.get("destination") || "Santorini";
+  const searchDest = searchParams.get("destination") || "";
+  const { user, token, logout } = useAuth();
 
   const [filterQuery, setFilterQuery] = useState("");
-  const [favorites, setFavorites] = useState<string[]>([]);
+  const [favorites, setFavorites] = useState<number[]>([]);
+  const [hotels, setHotels] = useState<Property[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const properties: Property[] = [
-    {
-      id: "astra",
-      name: "Astra Luxury Suites",
-      location: "Imerovigli, Santorini",
-      price: 850,
-      rating: 4.9,
-      image: "/images/astra-suites.jpg",
-      description: "Panoramic caldera views, private infinity pools, and world-class Mediterranean dining in the heart of Imerovigli.",
-      isTopRated: true,
-    },
-    {
-      id: "canaves",
-      name: "Canaves Oia Suites",
-      location: "Oia, Santorini",
-      price: 1200,
-      rating: 4.8,
-      image: "/images/canaves-suites.jpg",
-      description: "Sculpted into the volcanic cliffside, offering unparalleled elegance and the island's most iconic sunset views.",
-      isTopRated: true,
-    },
-    {
-      id: "grace",
-      name: "Grace Hotel Resort",
-      location: "Imerovigli, Santorini",
-      price: 980,
-      rating: 4.9,
-      image: "/images/grace-resort.jpg",
-      description: "An exclusive boutique sanctuary offering the perfect balance of luxury, privacy and the spirit of the Aegean.",
-      isTopRated: true,
-    },
-    {
-      id: "katikies",
-      name: "Katikies Santorini",
-      location: "Oia, Santorini",
-      price: 720,
-      rating: 4.7,
-      image: "/images/katikies-resort.jpg",
-      description: "Inspiring high-end living with white-on-white architecture and three infinity pools overlooking the Aegean.",
-    },
-    {
-      id: "mystique",
-      name: "Mystique Resort",
-      location: "Oia, Santorini",
-      price: 650,
-      rating: 4.6,
-      image: "/images/mystique-resort.jpg",
-      description: "Designed with natural stone and organic forms, this Luxury Collection hotel offers a distinct, earthy luxury.",
-    },
-    {
-      id: "vedema",
-      name: "Vedema Resort",
-      location: "Megalochori, Santorini",
-      price: 540,
-      rating: 4.8,
-      image: "/images/vedema-resort.jpg",
-      description: "A converted 400-year-old winery offering a unique village-style experience with secluded terraces and pools.",
-    },
-  ];
+  // Booking Modal States
+  const [selectedHotel, setSelectedHotel] = useState<Property | null>(null);
+  
+  const getTomorrowString = () => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  };
 
-  const toggleFavorite = (id: string) => {
+  const getDayAfterTomorrowString = () => {
+    const today = new Date();
+    const dayAfter = new Date(today);
+    dayAfter.setDate(dayAfter.getDate() + 2);
+    return dayAfter.toISOString().split('T')[0];
+  };
+
+  const [checkInDate, setCheckInDate] = useState(getTomorrowString());
+  const [checkOutDate, setCheckOutDate] = useState(getDayAfterTomorrowString());
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const [bookingError, setBookingError] = useState("");
+  const [bookingSuccess, setBookingSuccess] = useState("");
+
+  useEffect(() => {
+    async function fetchSearchResults() {
+      setLoading(true);
+      try {
+        const queryUrl = searchDest 
+          ? `http://localhost:4000/api/hotels?search=${encodeURIComponent(searchDest)}`
+          : "http://localhost:4000/api/hotels";
+        const res = await fetch(queryUrl);
+        const data = await res.json();
+        if (data.success) {
+          setHotels(data.data);
+        }
+      } catch (err) {
+        console.error("Error fetching filtered hotels:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchSearchResults();
+  }, [searchDest]);
+
+  const toggleFavorite = (id: number) => {
     if (favorites.includes(id)) {
       setFavorites(favorites.filter((f) => f !== id));
     } else {
@@ -92,7 +81,63 @@ function SearchResultsContent() {
     }
   };
 
-  const filteredProperties = properties.filter((p) =>
+  const calculateNights = () => {
+    if (!checkInDate || !checkOutDate) return 0;
+    const start = new Date(checkInDate);
+    const end = new Date(checkOutDate);
+    const diffTime = end.getTime() - start.getTime();
+    if (diffTime <= 0) return 0;
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
+  const calculateTotal = () => {
+    if (!selectedHotel) return 0;
+    return calculateNights() * selectedHotel.price_per_night;
+  };
+
+  const handleConfirmBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBookingError("");
+    setBookingSuccess("");
+    
+    const nights = calculateNights();
+    if (nights <= 0) {
+      setBookingError("Check-out date must be after check-in date.");
+      return;
+    }
+
+    setBookingLoading(true);
+    try {
+      const res = await fetch("http://localhost:4000/api/bookings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          hotel_id: selectedHotel?.id,
+          check_in_date: checkInDate,
+          check_out_date: checkOutDate,
+          total_price: calculateTotal(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setBookingSuccess("Booking placed successfully! Redirecting to dashboard...");
+        setTimeout(() => {
+          router.push("/bookings");
+        }, 1500);
+      } else {
+        setBookingError(data.message || "Failed to place booking.");
+      }
+    } catch (err: any) {
+      setBookingError(err.message || "Network error while placing booking.");
+    } finally {
+      setBookingLoading(false);
+    }
+  };
+
+  const filteredProperties = hotels.filter((p) =>
     p.name.toLowerCase().includes(filterQuery.toLowerCase()) ||
     p.location.toLowerCase().includes(filterQuery.toLowerCase())
   );
@@ -134,18 +179,34 @@ function SearchResultsContent() {
             </Link>
           </div>
           <div className="flex items-center gap-4">
-            <Link
-              href="/login"
-              className="font-sans text-sm font-semibold text-on-surface-variant hover:text-primary transition-all duration-300"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/signup"
-              className="bg-primary text-on-primary px-6 py-2.5 rounded-full font-sans text-sm font-semibold hover:opacity-90 active:scale-95 transition-all duration-300"
-            >
-              Join Now
-            </Link>
+            {user ? (
+              <>
+                <span className="font-sans text-sm text-on-surface-variant font-medium">
+                  Hi, {user.name.split(" ")[0]}
+                </span>
+                <button
+                  onClick={logout}
+                  className="bg-surface-container hover:bg-outline-variant text-on-surface px-6 py-2.5 rounded-full font-sans text-sm font-semibold active:scale-95 transition-all duration-300 cursor-pointer"
+                >
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="font-sans text-sm font-semibold text-on-surface-variant hover:text-primary transition-all duration-300"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/signup"
+                  className="bg-primary text-on-primary px-6 py-2.5 rounded-full font-sans text-sm font-semibold hover:opacity-90 active:scale-95 transition-all duration-300"
+                >
+                  Join Now
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -157,12 +218,12 @@ function SearchResultsContent() {
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
               <nav className="flex items-center gap-2 mb-2 text-on-surface-variant opacity-70">
-                <span className="font-sans text-xs">Greece</span>
+                <span className="font-sans text-xs">Destinations</span>
                 <span className="material-symbols-outlined text-sm">chevron_right</span>
-                <span className="font-sans text-xs">Cyclades</span>
+                <span className="font-sans text-xs">{searchDest || "All Stays"}</span>
               </nav>
               <h1 className="font-display text-3xl md:text-5xl font-extrabold text-on-surface tracking-tight">
-                Stays in {searchDest}
+                Stays in {searchDest || "Worldwide"}
               </h1>
               <p className="font-sans text-sm text-on-surface-variant mt-2">
                 {filteredProperties.length} properties found for your search
@@ -212,7 +273,11 @@ function SearchResultsContent() {
         </div>
 
         {/* Property Grid */}
-        {filteredProperties.length > 0 ? (
+        {loading ? (
+          <div className="py-24 text-center">
+            <span className="font-sans text-sm text-on-surface-variant">Loading boutique properties...</span>
+          </div>
+        ) : filteredProperties.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredProperties.map((property) => (
               <div key={property.id} className="group bg-white rounded-[24px] overflow-hidden card-shadow hover:translate-y-[-8px] transition-all duration-500 flex flex-col h-full border border-white">
@@ -220,9 +285,9 @@ function SearchResultsContent() {
                   <img
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                     alt={property.name}
-                    src={property.image}
+                    src={property.image_url || "/images/astra-suites.jpg"}
                   />
-                  {property.isTopRated && (
+                  {property.star_rating >= 5 && (
                     <div className="absolute top-4 left-4 bg-primary text-white px-3 py-1 rounded-full font-sans text-xs font-semibold flex items-center gap-1 shadow-lg">
                       <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
                       Top Rated
@@ -246,17 +311,24 @@ function SearchResultsContent() {
                     <h3 className="font-display text-lg font-bold text-on-surface leading-snug">{property.name}</h3>
                     <div className="flex items-center gap-1 text-primary shrink-0">
                       <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                      <span className="font-sans text-sm font-semibold">{property.rating}</span>
+                      <span className="font-sans text-sm font-semibold">{property.star_rating}.0</span>
                     </div>
                   </div>
                   <p className="font-sans text-xs text-on-surface-variant mb-6 line-clamp-2 leading-relaxed">{property.description}</p>
                   <div className="mt-auto pt-6 border-t border-outline-variant flex items-center justify-between">
                     <div>
-                      <span className="font-display text-xl font-bold text-primary">${property.price}</span>
+                      <span className="font-display text-xl font-bold text-primary">${property.price_per_night}</span>
                       <span className="font-sans text-xs text-on-surface-variant"> / night</span>
                     </div>
-                    <button className="bg-surface-container hover:bg-primary hover:text-white text-primary px-6 py-2.5 rounded-full font-sans text-xs font-semibold transition-all cursor-pointer active:scale-95">
-                      Details
+                    <button 
+                      onClick={() => {
+                        setSelectedHotel(property);
+                        setCheckInDate(getTomorrowString());
+                        setCheckOutDate(getDayAfterTomorrowString());
+                      }}
+                      className="bg-surface-container hover:bg-primary hover:text-white text-primary px-6 py-2.5 rounded-full font-sans text-xs font-semibold transition-all cursor-pointer active:scale-95"
+                    >
+                      Book Now
                     </button>
                   </div>
                 </div>
@@ -268,6 +340,109 @@ function SearchResultsContent() {
             <span className="material-symbols-outlined text-6xl text-outline mb-4">search_off</span>
             <h3 className="font-display text-lg font-bold text-on-surface mb-2">No stays match your search</h3>
             <p className="font-sans text-xs text-on-surface-variant max-w-[340px] mx-auto">Try clearing your filters or entering a different hotel name.</p>
+          </div>
+        )}
+
+        {/* Dynamic Interactive Booking Modal */}
+        {selectedHotel && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="bg-white rounded-[32px] p-8 max-w-md w-full border border-outline-variant shadow-2xl relative text-left mx-4">
+              <button
+                onClick={() => {
+                  setSelectedHotel(null);
+                  setBookingError("");
+                  setBookingSuccess("");
+                }}
+                className="absolute right-6 top-6 w-8 h-8 rounded-full bg-surface-container hover:bg-outline-variant flex items-center justify-center text-on-surface cursor-pointer transition-colors border-none outline-none"
+              >
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
+
+              <h3 className="font-display text-2xl font-bold text-on-surface mb-2">Book Your Stay</h3>
+              <p className="font-sans text-xs text-on-surface-variant mb-6">
+                Confirm your check-in and check-out dates at <span className="font-semibold text-primary">{selectedHotel.name}</span>.
+              </p>
+
+              {bookingError && (
+                <div className="bg-destructive/10 text-destructive text-sm p-4 rounded-xl border border-destructive/20 font-sans font-medium text-left mb-4">
+                  {bookingError}
+                </div>
+              )}
+
+              {bookingSuccess && (
+                <div className="bg-success/10 text-success text-sm p-4 rounded-xl border border-success/20 font-sans font-medium text-left mb-4">
+                  {bookingSuccess}
+                </div>
+              )}
+
+              {!user ? (
+                <div className="text-center py-4">
+                  <p className="font-sans text-sm text-on-surface-variant mb-6">
+                    You must sign in to place a booking.
+                  </p>
+                  <button
+                    onClick={() => router.push("/login")}
+                    className="w-full py-4 bg-primary text-on-primary rounded-full font-sans text-sm font-semibold shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95 transition-all cursor-pointer"
+                  >
+                    Go to Sign In
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleConfirmBooking} className="space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="font-sans text-xs font-semibold text-on-surface-variant ml-1" htmlFor="checkIn">Check-in</Label>
+                      <Input
+                        id="checkIn"
+                        type="date"
+                        min={getTomorrowString()}
+                        value={checkInDate}
+                        onChange={(e) => setCheckInDate(e.target.value)}
+                        required
+                        className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-on-surface text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="font-sans text-xs font-semibold text-on-surface-variant ml-1" htmlFor="checkOut">Check-out</Label>
+                      <Input
+                        id="checkOut"
+                        type="date"
+                        min={checkInDate || getTomorrowString()}
+                        value={checkOutDate}
+                        onChange={(e) => setCheckOutDate(e.target.value)}
+                        required
+                        className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-on-surface text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Price Details */}
+                  <div className="bg-surface-container-low p-4 rounded-2xl flex flex-col gap-2">
+                    <div className="flex justify-between items-center text-xs text-on-surface-variant font-sans">
+                      <span>Rate per night</span>
+                      <span>${selectedHotel.price_per_night}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs text-on-surface-variant font-sans">
+                      <span>Total nights</span>
+                      <span>{calculateNights()} nights</span>
+                    </div>
+                    <div className="h-[1px] bg-outline-variant my-1"></div>
+                    <div className="flex justify-between items-center text-sm font-bold text-on-surface font-display">
+                      <span>Estimated Total</span>
+                      <span className="text-primary">${calculateTotal()}</span>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    disabled={bookingLoading || calculateNights() <= 0}
+                    className="w-full py-4 bg-primary text-on-primary rounded-full font-sans text-sm font-semibold shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {bookingLoading ? "Confirming..." : "Confirm Booking"}
+                  </Button>
+                </form>
+              )}
+            </div>
           </div>
         )}
 

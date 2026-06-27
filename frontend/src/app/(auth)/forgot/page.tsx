@@ -6,14 +6,26 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/context/AuthContext";
 
 export default function ForgotPage() {
   const router = useRouter();
+  const { forgotPassword } = useAuth();
   const [email, setEmail] = useState("");
+  const [error, setError] = useState("");
+  const [loadingState, setLoadingState] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    router.push("/reset?email=" + encodeURIComponent(email));
+    setError("");
+    setLoadingState(true);
+    const res = await forgotPassword(email);
+    setLoadingState(false);
+    if (res.success) {
+      router.push("/reset?email=" + encodeURIComponent(email));
+    } else {
+      setError(res.message);
+    }
   };
 
   return (
@@ -57,6 +69,11 @@ export default function ForgotPage() {
           </div>
 
           <form className="space-y-6 text-left" onSubmit={handleSubmit}>
+            {error && (
+              <div className="bg-destructive/10 text-destructive text-sm p-4 rounded-xl border border-destructive/20 font-sans font-medium text-left">
+                {error}
+              </div>
+            )}
             <div className="space-y-1.5 text-left">
               <Label className="font-sans text-xs font-semibold text-on-surface-variant ml-1 uppercase tracking-wider" htmlFor="email">Email Address</Label>
               <div className="relative">
@@ -75,9 +92,10 @@ export default function ForgotPage() {
 
             <Button
               type="submit"
-              className="w-full py-6 bg-primary text-on-primary rounded-full font-sans text-sm font-semibold shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer mt-4"
+              disabled={loadingState}
+              className="w-full py-6 bg-primary text-on-primary rounded-full font-sans text-sm font-semibold shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer mt-4 disabled:opacity-50 disabled:pointer-events-none"
             >
-              Send Instructions
+              {loadingState ? "Sending..." : "Send Instructions"}
               <span className="material-symbols-outlined text-lg">send</span>
             </Button>
           </form>

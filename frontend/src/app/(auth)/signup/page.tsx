@@ -6,15 +6,19 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/context/AuthContext";
 
 export default function SignupPage() {
   const router = useRouter();
+  const { signup } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [agree, setAgree] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [error, setError] = useState("");
+  const [loadingState, setLoadingState] = useState(false);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -26,10 +30,25 @@ export default function SignupPage() {
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    router.push("/verify?email=" + encodeURIComponent(email));
+    if (!agree) {
+      setError("You must agree to the Terms of Service and Privacy Policy.");
+      return;
+    }
+    setError("");
+    setLoadingState(true);
+
+    const res = await signup(name, email, password);
+    setLoadingState(false);
+
+    if (res.success) {
+      router.push("/verify?email=" + encodeURIComponent(email));
+    } else {
+      setError(res.message);
+    }
   };
+
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -116,6 +135,12 @@ export default function SignupPage() {
               </div>
 
               <form className="space-y-6" onSubmit={handleSubmit}>
+                {error && (
+                  <div className="bg-destructive/10 text-destructive text-sm p-4 rounded-xl border border-destructive/20 font-sans font-medium text-left">
+                    {error}
+                  </div>
+                )}
+
                 <div className="space-y-1.5 text-left">
                   <Label className="font-sans text-xs font-semibold text-on-surface-variant ml-1" htmlFor="name">Full Name</Label>
                   <div className="relative">
@@ -183,10 +208,12 @@ export default function SignupPage() {
 
                 <Button
                   type="submit"
-                  className="w-full py-6 bg-primary text-on-primary rounded-full font-sans text-sm font-semibold shadow-lg shadow-primary/20 hover:opacity-90 active:scale-[0.98] transition-all duration-300 mt-4 cursor-pointer"
+                  disabled={loadingState}
+                  className="w-full py-6 bg-primary text-on-primary rounded-full font-sans text-sm font-semibold shadow-lg shadow-primary/20 hover:opacity-90 active:scale-[0.98] transition-all duration-300 mt-4 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
                 >
-                  Create Account
+                  {loadingState ? "Creating Account..." : "Create Account"}
                 </Button>
+
               </form>
 
               <div className="mt-8 text-center">

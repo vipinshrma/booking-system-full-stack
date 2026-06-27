@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Inter, Geist } from "next/font/google";
 import SmoothScroll from "@/components/SmoothScroll";
+import { AuthProvider } from "@/context/AuthContext";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
@@ -40,10 +41,13 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col bg-background font-sans text-on-surface">
-        <SmoothScroll>
-          {children}
-        </SmoothScroll>
+        <AuthProvider>
+          <SmoothScroll>
+            {children}
+          </SmoothScroll>
+        </AuthProvider>
       </body>
     </html>
   );
 }
+

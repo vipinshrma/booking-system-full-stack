@@ -1,27 +1,50 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/context/AuthContext";
 
-export default function ResetPage() {
+function ResetFormContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const email = searchParams.get("email") || "";
+  const { resetPassword } = useAuth();
+  
+  const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [loadingState, setLoadingState] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
+    setSuccess("");
+    
     if (password !== confirmPassword) {
-      alert("Passwords do not match!");
+      setError("Passwords do not match!");
       return;
     }
-    alert("Password updated successfully!");
-    router.push("/login");
+    
+    setLoadingState(true);
+    const res = await resetPassword(email, otp, password, confirmPassword);
+    setLoadingState(false);
+    
+    if (res.success) {
+      setSuccess("Password updated successfully! Redirecting to login...");
+      setTimeout(() => {
+        router.push("/login");
+      }, 2000);
+    } else {
+      setError(res.message);
+    }
   };
 
   return (
@@ -65,6 +88,50 @@ export default function ResetPage() {
           </div>
 
           <form className="space-y-6 text-left" onSubmit={handleSubmit}>
+            {error && (
+              <div className="bg-destructive/10 text-destructive text-sm p-4 rounded-xl border border-destructive/20 font-sans font-medium text-left">
+                {error}
+              </div>
+            )}
+            {success && (
+              <div className="bg-success/10 text-success text-sm p-4 rounded-xl border border-success/20 font-sans font-medium text-left">
+                {success}
+              </div>
+            )}
+
+            {/* Email Address (disabled representation) */}
+            <div className="space-y-1.5 text-left opacity-75">
+              <Label className="font-sans text-xs font-semibold text-on-surface-variant ml-1 uppercase tracking-wider" htmlFor="email">Email Address</Label>
+              <div className="relative">
+                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl z-10">mail</span>
+                <Input
+                  id="email"
+                  disabled
+                  value={email}
+                  className="w-full pl-12 pr-4 py-6 rounded-xl border border-border bg-surface-container-high text-on-surface-variant text-sm cursor-not-allowed"
+                  type="email"
+                />
+              </div>
+            </div>
+
+            {/* OTP Code */}
+            <div className="space-y-1.5 text-left">
+              <Label className="font-sans text-xs font-semibold text-on-surface-variant ml-1 uppercase tracking-wider" htmlFor="otp">Verification Code (OTP)</Label>
+              <div className="relative">
+                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl z-10">pin</span>
+                <Input
+                  id="otp"
+                  required
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  className="w-full pl-12 pr-4 py-6 rounded-xl border border-border bg-surface text-on-surface placeholder:text-outline/70 focus:border-primary focus:ring-3 focus:ring-primary/10 transition-all outline-none text-sm"
+                  placeholder="Enter 4-digit code"
+                  type="text"
+                />
+              </div>
+            </div>
+
+            {/* Password */}
             <div className="space-y-1.5 text-left">
               <Label className="font-sans text-xs font-semibold text-on-surface-variant ml-1 uppercase tracking-wider" htmlFor="password">New Password</Label>
               <div className="relative">
@@ -90,6 +157,7 @@ export default function ResetPage() {
               </div>
             </div>
 
+            {/* Confirm Password */}
             <div className="space-y-1.5 text-left">
               <Label className="font-sans text-xs font-semibold text-on-surface-variant ml-1 uppercase tracking-wider" htmlFor="confirmPassword">Confirm Password</Label>
               <div className="relative">
@@ -117,9 +185,10 @@ export default function ResetPage() {
 
             <Button
               type="submit"
-              className="w-full py-6 bg-primary text-on-primary rounded-full font-sans text-sm font-semibold shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer mt-4"
+              disabled={loadingState}
+              className="w-full py-6 bg-primary text-on-primary rounded-full font-sans text-sm font-semibold shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer mt-4 disabled:opacity-50 disabled:pointer-events-none"
             >
-              Reset Password
+              {loadingState ? "Resetting..." : "Reset Password"}
               <span className="material-symbols-outlined text-lg">check_circle</span>
             </Button>
           </form>
@@ -155,10 +224,18 @@ export default function ResetPage() {
           <div className="flex gap-8">
             <a className="text-on-surface-variant hover:text-primary transition-colors font-sans text-xs font-semibold" href="#">Privacy Policy</a>
             <a className="text-on-surface-variant hover:text-primary transition-colors font-sans text-xs font-semibold" href="#">Terms of Service</a>
-            <a className="text-on-surface-variant hover:text-primary transition-colors font-sans text-xs font-semibold" href="#">Help Center</a>
+            <a className="text-on-surface-variant hover:text-primary transition-colors font-sans text-xs font-semibold" href="/help">Help Center</a>
           </div>
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function ResetPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background">Loading reset password...</div>}>
+      <ResetFormContent />
+    </Suspense>
   );
 }

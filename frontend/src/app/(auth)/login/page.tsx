@@ -6,14 +6,18 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [error, setError] = useState("");
+  const [loadingState, setLoadingState] = useState(false);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -25,9 +29,19 @@ export default function LoginPage() {
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    router.push("/verify?email=" + encodeURIComponent(email));
+    setError("");
+    setLoadingState(true);
+    const res = await login(email, password);
+    setLoadingState(false);
+    if (res.success) {
+      router.push("/");
+    } else if (res.isVerified === false) {
+      router.push("/verify?email=" + encodeURIComponent(email));
+    } else {
+      setError(res.message);
+    }
   };
 
   return (
@@ -115,6 +129,12 @@ export default function LoginPage() {
               </div>
 
               <form className="space-y-6" onSubmit={handleSubmit}>
+                {error && (
+                  <div className="bg-destructive/10 text-destructive text-sm p-4 rounded-xl border border-destructive/20 font-sans font-medium text-left">
+                    {error}
+                  </div>
+                )}
+
                 <div className="space-y-1.5 text-left">
                   <Label className="font-sans text-xs font-semibold text-on-surface-variant ml-1" htmlFor="email">Email Address</Label>
                   <div className="relative">
@@ -179,9 +199,10 @@ export default function LoginPage() {
 
                 <Button
                   type="submit"
-                  className="w-full py-6 bg-primary text-on-primary rounded-full font-sans text-sm font-semibold shadow-lg shadow-primary/20 hover:opacity-90 active:scale-[0.98] transition-all duration-300 mt-4 cursor-pointer"
+                  disabled={loadingState}
+                  className="w-full py-6 bg-primary text-on-primary rounded-full font-sans text-sm font-semibold shadow-lg shadow-primary/20 hover:opacity-90 active:scale-[0.98] transition-all duration-300 mt-4 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
                 >
-                  Sign In to LuxeStay
+                  {loadingState ? "Signing In..." : "Sign In to LuxeStay"}
                 </Button>
               </form>
 
