@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
+import { useAuth } from "@/context/AuthContext";
 
 interface FaqItem {
   question: string;
@@ -12,6 +13,7 @@ interface FaqItem {
 }
 
 export default function HelpCenterPage() {
+  const { user, logout } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
 
   const faqs: FaqItem[] = [
@@ -97,18 +99,34 @@ export default function HelpCenterPage() {
             </Link>
           </div>
           <div className="flex items-center gap-4">
-            <Link
-              href="/login"
-              className="font-sans text-sm font-semibold text-on-surface-variant hover:text-primary transition-all duration-300"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/signup"
-              className="bg-primary text-on-primary px-6 py-2.5 rounded-full font-sans text-sm font-semibold hover:opacity-90 active:scale-95 transition-all duration-300"
-            >
-              Join Now
-            </Link>
+            {user ? (
+              <>
+                <span className="font-sans text-sm text-on-surface-variant font-medium">
+                  Hi, {user.name.split(" ")[0]}
+                </span>
+                <button
+                  onClick={logout}
+                  className="bg-surface-container hover:bg-outline-variant text-on-surface px-6 py-2.5 rounded-full font-sans text-sm font-semibold active:scale-95 transition-all duration-300 cursor-pointer"
+                >
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="font-sans text-sm font-semibold text-on-surface-variant hover:text-primary transition-all duration-300"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/signup"
+                  className="bg-primary text-on-primary px-6 py-2.5 rounded-full font-sans text-sm font-semibold hover:opacity-90 active:scale-95 transition-all duration-300"
+                >
+                  Join Now
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>
